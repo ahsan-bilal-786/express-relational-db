@@ -1,38 +1,48 @@
-const JWT = require("jsonwebtoken");
+const { generateJWToken, hashPassword } = require("../helpers/auth");
 const { User } = require("../models");
 
-const signToken = (sub) => {
-  return JWT.sign(
-    {
-      iss: "express-relational-db",
-      sub,
-      iat: new Date().getTime(), // current time
-      exp: new Date().setDate(new Date().getDate() + 1), // current time + 1 day ahead
-    },
-    process.env.AUTH_SECRET_KEY
-  );
-};
-
 const createUser = async (req, res, next) => {
-  let user = await User.findOne({ where: { email: req.body.email } });
+  let payload = req.body;
+  let user = await User.findOne({ where: { email: payload.email } });
 
   if (user !== null)
     return res
       .status(500)
       .send({ message: "A user has already registered with this email." });
 
-  user = await User.create(req.body);
+  payload.password = await hashPassword(payload.password);
+  user = await User.create(payload);
 
   if (!(user && user.id))
     return res.status(500).send({ message: "Unable to process the request." });
 
-  const token = signToken(user.id);
+  const token = generateJWToken(user);
+  const { id, name, email, password, contact, avatar } = user;
   res.status(201).json({
     token,
-    user,
+    id,
+    name,
+    email,
+    password,
+    contact,
+    avatar,
+  });
+};
+
+const loginUser = async (req, res, next) => {
+  const token = generateJWToken(req.user);
+  const { id, name, email, contact, avatar } = req.user;
+  res.status(200).json({
+    token,
+    id,
+    name,
+    email,
+    contact,
+    avatar,
   });
 };
 
 module.exports = {
   createUser,
+  loginUser,
 };
